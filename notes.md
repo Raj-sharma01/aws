@@ -22,3 +22,65 @@ a NAT GW must be in a public subnet to connect to IGW as normally only public su
 
 IGW is not inside any subbnet in a VPC. it is attacthed to a VPC (bridge between VPC and internet)
 
+to reach internet EC2 SG must allow it (better to allow to reach specific ip instead of 0.0.0.0/0).
+sg is attacched to recource which tells if the message packet is even allowed to reach that ip.
+route table is associated to subnet which tell to reach an ip where should the message go to.
+
+EC2
+ │
+ ✔ Allowed by SG
+ │
+ Route Table
+ │
+ NAT Gateway
+ │
+ IGW
+ │
+ Google
+
+ Application creates packet
+        │
+        ▼
+Outbound SG
+"Am I allowed to send this?"
+        │
+        ▼
+Route Table
+"How do I reach that destination?"
+        │
+        ▼
+Next hop (NAT, IGW, local, etc.)
+
+Route Table
+
+If I want to reach this destination IP, where should I send the packet next?
+
+For example:
+
+Destination
+
+10.0.2.15
+
+↓
+
+local
+
+or
+
+8.8.8.8
+
+↓
+
+NAT Gateway
+
+
+It's really a next-hop lookup table.
+
+Outbound SG
+
+Am I allowed to send traffic with this protocol, port, and destination?
+
+Inbound SG
+
+Am I allowed to accept traffic with this protocol, port, and source?
+
