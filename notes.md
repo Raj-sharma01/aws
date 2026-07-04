@@ -26,6 +26,8 @@
 * The EC2 instance starts the connection.
 * `EC2  -------> Internet`
 * `Internet ------X------> EC2` (No one on the internet can start a connection to your EC2).
+* IGW is like a door to connect to the internet. it can't help if you don't have a public ip. to connect to internet you need both access to igw and a public ip.
+* NAT(Network Address Translation) gw map private ip of recources withit own public ip and connects to the internet using igw. It maintains a mapping table where it source ip(private) and destination ip for each request. if a response comes from the destination ip it redirects it to private ip of the resources and then drops the entry from the mapping table. if any one from the internet try to access or send request to nat. it check if it is a response for any request using the map table, if its not it drops the packet. thus maintainig a one way internet acccess. I real world a router has both a NAT gw and IGW.
 
 
 * A NAT GW **must** be placed in a public subnet to connect to the IGW, as normally only public subnets have the route for the IGW in their route table.
