@@ -386,3 +386,320 @@ Think: **Local SSD of the physical server.**
 * Can be detached from one instance and attached to another.
 
 ---
+
+# Elastic Network Interface (ENI)
+
+### Mental Model
+
+* Every EC2 has at least one **Elastic Network Interface (ENI)**.
+* Think of an ENI as the **network card (NIC)** of an EC2 instance.
+* The EC2 provides the **compute** (CPU + RAM), while the ENI provides the **network identity**.
+* Since compute and networking are separate, an ENI can be detached from one EC2 and attached to another (within the same AZ).
+
+```text
+EC2
+│
+├── CPU
+├── RAM
+└── ENI
+```
+
+---
+
+### What belongs to an ENI?
+
+The following networking properties belong to the ENI (not directly to the EC2):
+
+* Private IPv4 Address (Primary + Secondary)
+* MAC Address
+* Security Groups
+* Elastic IP (if one is associated)
+
+Think:
+
+> **Everything related to networking belongs to the ENI.**
+
+---
+
+### Why move an ENI?
+
+Suppose:
+
+```text
+EC2-A
+
+ENI
+└── Private IP = 10.0.1.15
+```
+
+If EC2-A fails:
+
+```text
+Detach ENI
+
+↓
+
+Attach ENI
+
+↓
+
+EC2-B
+```
+
+Now EC2-B has the same:
+
+* Private IP
+* MAC Address
+* Security Groups
+
+Clients continue connecting to the same private IP without knowing the compute changed.
+
+---
+
+# Private IP vs Elastic IP
+
+These are **different IP addresses**.
+
+Example:
+
+```text
+Private IP : 10.0.1.15
+Elastic IP : 54.12.34.56
+```
+
+They are never the same.
+
+AWS performs a **1:1 Network Address Translation (NAT)** between them.
+
+```text
+Internet
+     │
+54.12.34.56
+     │
+AWS NAT
+     │
+10.0.1.15
+     │
+EC2
+```
+
+---
+
+### Auto-assigned Public IP vs Elastic IP
+
+**Auto-assigned Public IP**
+
+* Assigned automatically while the instance is running.
+* Returned to AWS when the instance is stopped.
+* New Public IP after Stop/Start.
+
+**Elastic IP**
+
+* Static Public IP allocated to your AWS account.
+* Remains associated until you detach or release it.
+* Can be moved between EC2 instances.
+
+---
+
+### Exam Shortcut
+
+If the requirement says:
+
+* **Keep the same Private IP** → Think **ENI**
+* **Keep the same Public IP** → Think **Elastic IP**
+
+---
+
+# AWS Networking Identity
+
+An EC2's identity is made up of different components:
+
+```text
+Compute Identity
+---------------
+CPU
+RAM
+
+Storage Identity
+----------------
+EBS Volumes
+
+Network Identity
+----------------
+ENI
+├── Private IP
+├── MAC Address
+├── Security Groups
+└── Elastic IP (optional)
+```
+
+AWS allows these components to be managed independently, which is why failover can preserve storage or networking without preserving compute.
+
+---
+## Elastic Network Interface (ENI)
+
+### Mental Model
+
+* Think of an ENI as a **virtual Network Interface Card (NIC)** attached to an EC2 instance.
+* The EC2 provides the **compute** (CPU + RAM), while the ENI provides the **network identity**.
+* Every EC2 has at least one ENI (called the **Primary ENI**).
+* Depending on the instance type, an EC2 can have multiple ENIs attached.
+
+```text
+EC2
+│
+├── CPU
+├── RAM
+├── EBS
+│
+├── ENI-1 (Primary)
+└── ENI-2 (Optional)
+```
+
+---
+
+### Why Multiple ENIs?
+
+An EC2 may have multiple ENIs to:
+
+* Connect to multiple subnets (within the same AZ).
+* Separate different kinds of network traffic (e.g., application traffic and management traffic).
+* Preserve network identity during failover by moving an ENI to another EC2.
+
+---
+
+### What belongs to an ENI?
+
+The following networking properties belong to the ENI (not directly to the EC2):
+
+* Primary Private IPv4 Address
+* Secondary Private IPv4 Address(es)
+* MAC Address
+* Security Groups
+* Elastic IP(s) (if associated)
+
+Think:
+
+> **Everything related to networking belongs to the ENI.**
+
+---
+
+### Private IP Addresses
+
+* Every ENI has **exactly one Primary Private IP**.
+* An ENI can also have **multiple Secondary Private IPs**.
+
+Example:
+
+```text
+ENI
+
+Primary Private IP
+10.0.1.15
+
+Secondary Private IP
+10.0.1.16
+
+Secondary Private IP
+10.0.1.17
+```
+
+This means a single EC2 can own multiple private IP addresses.
+
+---
+
+### Multiple ENIs + Multiple Private IPs
+
+If an EC2 has multiple ENIs, each ENI has its own Primary Private IP and optional Secondary Private IPs.
+
+Example:
+
+```text
+EC2
+
+├── ENI-1
+│     ├── 10.0.1.15 (Primary)
+│     └── 10.0.1.16 (Secondary)
+│
+└── ENI-2
+      ├── 10.0.2.20 (Primary)
+      └── 10.0.2.21 (Secondary)
+```
+
+---
+
+### Elastic IP
+
+* An Elastic IP is **not** a Private IP.
+* It is a **static Public IP** allocated by AWS.
+* AWS performs a **1:1 NAT mapping** between an Elastic IP and a Private IP.
+
+```text
+Elastic IP (Public)
+54.x.x.x
+      │
+      ▼
+Private IP
+10.0.1.15
+      │
+      ▼
+ENI
+      │
+      ▼
+EC2
+```
+
+* An Elastic IP is associated with a **Private IP on an ENI**, not directly with the EC2.
+* A Private IP can have at most **one Elastic IP** associated with it.
+* If an ENI has multiple Private IPs, different Elastic IPs can be associated with different Private IPs.
+
+Example:
+
+```text
+ENI
+
+10.0.1.15  ←→  54.x.x.x
+
+10.0.1.16  ←→  13.x.x.x
+```
+
+This means a single EC2 can have multiple Public (Elastic) IPs.
+
+---
+
+### Why move an ENI?
+
+Suppose:
+
+```text
+EC2-A
+
+ENI
+└── Private IP = 10.0.1.15
+```
+
+If EC2-A fails:
+
+```text
+Detach ENI
+
+↓
+
+Attach ENI
+
+↓
+
+EC2-B
+```
+
+EC2-B now has the same:
+
+* Private IP
+* MAC Address
+* Security Groups
+* Elastic IP(s) (if associated)
+
+Clients continue connecting to the same Private IP without knowing that the compute has changed.
+
+---
+
