@@ -1,3 +1,4 @@
+## Networks
 ### VPC & Route Tables Basics
 
 * Route tables are associated with VPCs and subnets. **Route tables are not associated with resources.**
@@ -197,3 +198,191 @@ RDS
 
 ```
 <img width="738" height="559" alt="image" src="https://github.com/user-attachments/assets/ea3a8c70-4303-40a7-aabd-dc7acfbe5f21" />
+
+
+# EC2 Lifecycle
+<img width="1098" height="764" alt="image" src="https://github.com/user-attachments/assets/2bf96fd0-dfad-4e17-bae1-c04241be2b5d" />
+
+
+## Mental Model
+
+An EC2 instance consists of two major parts:
+
+* **Compute (temporary):**
+
+  * CPU
+  * RAM
+  * Physical Host
+  * Instance Store (local SSD, if present)
+
+* **Persistent Storage:**
+
+  * EBS Volumes (Root + Additional EBS)
+
+When an instance is stopped, AWS can release the **compute** but keep the **EBS**.
+
+---
+
+## Instance States
+
+* **Pending:** AWS is preparing the instance (allocating compute, attaching EBS volumes, configuring networking).
+* **Running:** Instance is ready. Compute billing starts.
+* **Stopping:** Instance is shutting down.
+
+  * Normally not billed.
+  * Exception: Hibernation is billed while RAM is being copied to EBS.
+* **Stopped:** Compute is released. EBS volumes still exist.
+* **Shutting-down:** Instance is being permanently deleted.
+* **Terminated:** Instance no longer exists.
+
+---
+
+# Reboot
+
+Think: **Restart the operating system.**
+
+* Instance stays on the **same physical host**.
+* CPU and RAM are restarted.
+* RAM contents are lost.
+* Root EBS and additional EBS are preserved.
+* Instance Store is preserved (same host).
+* Private IP remains the same.
+* Public IP remains the same.
+
+---
+
+# Stop
+
+Think: **Shut down the machine and give the hardware back to AWS.**
+
+* Compute resources are released.
+
+  * CPU released.
+  * RAM lost.
+  * Physical host released.
+* Root EBS and additional EBS are detached and preserved.
+* Instance Store is lost because it belongs to the old physical host.
+* Private IP remains the same.
+* Auto-assigned Public IP changes when the instance starts again.
+* Elastic IP remains associated.
+
+---
+
+# Hibernate
+
+Think: **Stop + Save RAM.**
+
+Before stopping:
+
+```text
+RAM
+ │
+ ▼
+Saved to Root EBS
+```
+
+Then AWS performs the same steps as **Stop**.
+
+When started again:
+
+```text
+Root EBS
+ │
+ ▼
+RAM Restored
+ │
+ ▼
+Application continues from where it stopped
+```
+
+* CPU is released.
+* Physical host is released.
+* Root EBS is preserved.
+* Additional EBS is preserved.
+* Instance Store is lost.
+* Private IP remains the same.
+* Auto-assigned Public IP changes.
+* Elastic IP remains associated.
+* No compute charges while in the **Stopped** state.
+* Still pay for:
+
+  * Root EBS
+  * Additional EBS
+  * Storage used to save RAM
+
+---
+
+# Terminate
+
+Think: **Delete the instance permanently.**
+
+* Compute is deleted.
+* RAM is lost.
+* Instance Store is lost.
+* Root EBS is deleted by default (configurable).
+* Additional EBS depends on its Delete on Termination setting.
+* Private IP is released.
+* Public IP is released.
+* Elastic IP is disassociated (but not deleted).
+
+---
+
+# Storage Types
+
+## EBS (Elastic Block Store)
+
+Think: **Persistent network disk.**
+
+* Network attached storage.
+* Independent of the physical host.
+* Can move with the instance to another host.
+* Survives:
+
+  * Reboot
+  * Stop
+  * Hibernate
+* Deleted on Termination by default (configurable).
+
+---
+
+## Instance Store
+
+Think: **Local SSD of the physical server.**
+
+* Physically attached to the host.
+* Extremely fast.
+* Temporary storage.
+* Survives only:
+
+  * Reboot (same host)
+* Lost on:
+
+  * Stop
+  * Hibernate
+  * Terminate
+
+> **Rule:** Instance Store belongs to the **host**, not the **instance**.
+
+---
+
+# Public IP vs Elastic IP
+
+## Auto-assigned Public IP
+
+* Assigned automatically while the instance is running.
+* Returned to AWS when the instance is stopped.
+* A new Public IP is assigned when the instance starts again.
+
+---
+
+## Elastic IP
+
+* Static Public IP allocated to your AWS account.
+* Remains associated across:
+
+  * Reboot
+  * Stop/Start
+  * Hibernate
+* Can be detached from one instance and attached to another.
+
+---
