@@ -1,15 +1,14 @@
-## Networks
 ### VPC & Route Tables Basics
 
 * Route tables are associated with VPCs and subnets. **Route tables are not associated with resources.**
 * Every VPC starts with a **Main (default) Route Table**. Subnets inherit this main route table by default.
-* If you add an entry (like `0.0.0.0/0` to IGW) to the *main* route table, it will be used by all subnets in the VPC. Technically, all those subnets will be able to use it and behave like public subnets.
+* If you add an entry (like `0.0.0.0/0` to IGW) to the *main* route table, it will be used by all subnets in the VPC. Technically, all those subnets will be able to use it and behave like public subne[...]
 * If you want some subnets to have something different in their routing, you need to create a **Custom Route Table** and explicitly associate it with those subnets.
 * Associating a custom Route Table with a subnet **replaces** the Main Route Table for that subnet. The subnet does **not** use both.
 * Every subnet can be associated with **exactly one** Route Table at a time. One Route Table **can** be associated with multiple subnets.
 * Every Route Table automatically contains a **local** route for the VPC CIDR (e.g. `10.0.0.0/16 -> local`).
 * **`local` does NOT mean same subnet.** It means the destination is somewhere **inside the same VPC** (could be the same subnet or another subnet).
-* Route Tables (Direction) only look at the **Destination IP**. They are really a next-hop lookup table ("If I want to reach this destination IP, where should I send the packet next?"). They do **not** consider:
+* Route Tables (Direction) only look at the **Destination IP**. They are really a next-hop lookup table ("If I want to reach this destination IP, where should I send the packet next?"). They do **not*[...] 
 * Source IP
 * Protocol (TCP/UDP)
 * Port
@@ -28,7 +27,7 @@
 * **Private subnet:** Does not have a route to the IGW.
 
 
-* A subnet is considered public **only** if it has a route to an Internet Gateway. However, for a resource inside it to actually reach the internet, the resource **must also** have a Public IP (or Elastic IP).
+* A subnet is considered public **only** if it has a route to an Internet Gateway. However, for a resource inside it to actually reach the internet, the resource **must also** have a Public IP (or Ela[...]
 * Simply attaching an IGW to a VPC does **not** make every subnet public.
 * Traffic Flow:
 * **Public subnet:** Resource -> IGW -> Internet
@@ -48,8 +47,8 @@
 * `Internet ------X------> EC2` (No one on the internet can start a connection to your EC2).
 
 
-* NAT (Network Address Translation) GW maps the private IP of resources with its own public IP and connects to the internet using IGW. It maintains a mapping table where it stores source IP (private) and destination IP for each request.
-* If a response comes from the destination IP, it redirects it to the private IP of the resources and then drops the entry from the mapping table. If anyone from the internet tries to access or send a request to NAT, it checks if it is a response for any request using the map table; if it's not, it drops the packet. Thus maintaining a one-way internet access. (In the real world a router has both a NAT GW and IGW).
+* NAT (Network Address Translation) GW maps the private IP of resources with its own public IP and connects to the internet using IGW. It maintains a mapping table where it stores source IP (private) [...]
+* If a response comes from the destination IP, it redirects it to the private IP of the resources and then drops the entry from the mapping table. If anyone from the internet tries to access or send a[...]
 * A NAT GW **must** be placed in a public subnet to connect to the IGW, as normally only public subnets have the route for the IGW in their route table.
 
 ---
@@ -67,7 +66,7 @@
 
 * Security Groups only have **Allow** rules. There are no explicit **Deny** rules.
 * A resource can have **multiple Security Groups** attached. The effective permission is the **union (OR)** of all attached Security Groups.
-* Security Groups can reference another Security Group instead of an IP range (e.g., Use *Allow MySQL from `AppServer-SG*` instead of `10.0.1.0/24`). This avoids hardcoding IP addresses and automatically works for new resources using that SG.
+* Security Groups can reference another Security Group instead of an IP range (e.g., Use *Allow MySQL from `AppServer-SG*` instead of `10.0.1.0/24`). This avoids hardcoding IP addresses and automatica[...]
 
 **Network ACL (NACL):**
 
@@ -86,9 +85,9 @@
 
 ### DNS in VPC
 
-* Whenever an application inside your VPC queries an external domain or one of your own domains, it first queries **AmazonProvidedDNS**. *(Exam Note: This resolver is always located at the base of the VPC IPv4 network range plus two. E.g., `10.0.0.2`)*
+* Whenever an application inside your VPC queries an external domain or one of your own domains, it first queries **AmazonProvidedDNS**. *(Exam Note: This resolver is always located at the base of the[...]
 * If the query is for a public domain (like google.com), the resolver goes to the public internet to find the answer.
-* If the query is for one of your own Route 53 domains (like mycompany.com), AmazonProvidedDNS forwards the request to Route 53, which acts as the ultimate authority for that domain and returns the mapped IP address.
+* If the query is for one of your own Route 53 domains (like mycompany.com), AmazonProvidedDNS forwards the request to Route 53, which acts as the ultimate authority for that domain and returns the ma[...]
 
 ---
 
@@ -200,506 +199,46 @@ RDS
 <img width="738" height="559" alt="image" src="https://github.com/user-attachments/assets/ea3a8c70-4303-40a7-aabd-dc7acfbe5f21" />
 
 
-# EC2 Lifecycle
-<img width="1098" height="764" alt="image" src="https://github.com/user-attachments/assets/2bf96fd0-dfad-4e17-bae1-c04241be2b5d" />
-
-
-## Mental Model
-
-An EC2 instance consists of two major parts:
-
-* **Compute (temporary):**
-
-  * CPU
-  * RAM
-  * Physical Host
-  * Instance Store (local SSD, if present)
-
-* **Persistent Storage:**
-
-  * EBS Volumes (Root + Additional EBS)
-
-When an instance is stopped, AWS can release the **compute** but keep the **EBS**.
-
----
-
-## Instance States
-
-* **Pending:** AWS is preparing the instance (allocating compute, attaching EBS volumes, configuring networking).
-* **Running:** Instance is ready. Compute billing starts.
-* **Stopping:** Instance is shutting down.
-
-  * Normally not billed.
-  * Exception: Hibernation is billed while RAM is being copied to EBS.
-* **Stopped:** Compute is released. EBS volumes still exist.
-* **Shutting-down:** Instance is being permanently deleted.
-* **Terminated:** Instance no longer exists.
-
----
-
-# Reboot
-
-Think: **Restart the operating system.**
-
-* Instance stays on the **same physical host**.
-* CPU and RAM are restarted.
-* RAM contents are lost.
-* Root EBS and additional EBS are preserved.
-* Instance Store is preserved (same host).
-* Private IP remains the same.
-* Public IP remains the same.
-
----
-
-# Stop
-
-Think: **Shut down the machine and give the hardware back to AWS.**
-
-* Compute resources are released.
-
-  * CPU released.
-  * RAM lost.
-  * Physical host released.
-* Root EBS and additional EBS are detached and preserved.
-* Instance Store is lost because it belongs to the old physical host.
-* Private IP remains the same.
-* Auto-assigned Public IP changes when the instance starts again.
-* Elastic IP remains associated.
-
----
-
-# Hibernate
-
-Think: **Stop + Save RAM.**
-
-Before stopping:
-
-```text
-RAM
- │
- ▼
-Saved to Root EBS
-```
-
-Then AWS performs the same steps as **Stop**.
-
-When started again:
-
-```text
-Root EBS
- │
- ▼
-RAM Restored
- │
- ▼
-Application continues from where it stopped
-```
-
-* CPU is released.
-* Physical host is released.
-* Root EBS is preserved.
-* Additional EBS is preserved.
-* Instance Store is lost.
-* Private IP remains the same.
-* Auto-assigned Public IP changes.
-* Elastic IP remains associated.
-* No compute charges while in the **Stopped** state.
-* Still pay for:
-
-  * Root EBS
-  * Additional EBS
-  * Storage used to save RAM
-
----
-
-# Terminate
-
-Think: **Delete the instance permanently.**
-
-* Compute is deleted.
-* RAM is lost.
-* Instance Store is lost.
-* Root EBS is deleted by default (configurable).
-* Additional EBS depends on its Delete on Termination setting.
-* Private IP is released.
-* Public IP is released.
-* Elastic IP is disassociated (but not deleted).
-
----
-
-# Storage Types
-
-## EBS (Elastic Block Store)
-
-Think: **Persistent network disk.**
-
-* Network attached storage.
-* Independent of the physical host.
-* Can move with the instance to another host.
-* Survives:
-
-  * Reboot
-  * Stop
-  * Hibernate
-* Deleted on Termination by default (configurable).
-
----
-
-## Instance Store
-
-Think: **Local SSD of the physical server.**
-
-* Physically attached to the host.
-* Extremely fast.
-* Temporary storage.
-* Survives only:
-
-  * Reboot (same host)
-* Lost on:
-
-  * Stop
-  * Hibernate
-  * Terminate
-
-> **Rule:** Instance Store belongs to the **host**, not the **instance**.
-
----
-
-# Public IP vs Elastic IP
-
-## Auto-assigned Public IP
-
-* Assigned automatically while the instance is running.
-* Returned to AWS when the instance is stopped.
-* A new Public IP is assigned when the instance starts again.
-
----
-
-## Elastic IP
-
-* Static Public IP allocated to your AWS account.
-* Remains associated across:
-
-  * Reboot
-  * Stop/Start
-  * Hibernate
-* Can be detached from one instance and attached to another.
-
----
-
-# Elastic Network Interface (ENI)
-
-### Mental Model
-
-* Every EC2 has at least one **Elastic Network Interface (ENI)**.
-* Think of an ENI as the **network card (NIC)** of an EC2 instance.
-* The EC2 provides the **compute** (CPU + RAM), while the ENI provides the **network identity**.
-* Since compute and networking are separate, an ENI can be detached from one EC2 and attached to another (within the same AZ).
-
-```text
-EC2
-│
-├── CPU
-├── RAM
-└── ENI
-```
-
----
-
-### What belongs to an ENI?
-
-The following networking properties belong to the ENI (not directly to the EC2):
-
-* Private IPv4 Address (Primary + Secondary)
-* MAC Address
-* Security Groups
-* Elastic IP (if one is associated)
-
-Think:
-
-> **Everything related to networking belongs to the ENI.**
-
----
-
-### Why move an ENI?
-
-Suppose:
-
-```text
-EC2-A
-
-ENI
-└── Private IP = 10.0.1.15
-```
-
-If EC2-A fails:
-
-```text
-Detach ENI
-
-↓
-
-Attach ENI
-
-↓
-
-EC2-B
-```
-
-Now EC2-B has the same:
-
-* Private IP
-* MAC Address
-* Security Groups
-
-Clients continue connecting to the same private IP without knowing the compute changed.
-
----
-
-# Private IP vs Elastic IP
-
-These are **different IP addresses**.
+### Elastic Network Interface (ENI)
+
+#### Mental model
+- An ENI is a virtual Network Interface Card (NIC) that provides an EC2 instance's network identity. Compute (CPU/RAM) and networking are separate: the EC2 supplies compute while the ENI supplies network identity.
+- Every EC2 has at least one ENI (the Primary ENI). Some instance types support multiple ENIs.
+- ENIs can be detached from one EC2 and attached to another within the *same Availability Zone (AZ)*, allowing network identity to move independently of compute.
+
+#### What belongs to an ENI
+The ENI (not the EC2) owns:
+- Primary and Secondary Private IPv4 addresses
+- MAC address
+- Security Groups
+- Any associated Elastic IP(s)
+
+In short: everything related to networking belongs to the ENI.
+
+#### Private IPs
+- Each ENI has exactly one Primary Private IP and may have multiple Secondary Private IPs.
+- An EC2 with multiple ENIs can therefore have private IPs on each ENI (each ENI keeps its own primary + optional secondaries).
 
 Example:
-
-```text
-Private IP : 10.0.1.15
-Elastic IP : 54.12.34.56
-```
-
-They are never the same.
-
-AWS performs a **1:1 Network Address Translation (NAT)** between them.
-
-```text
-Internet
-     │
-54.12.34.56
-     │
-AWS NAT
-     │
-10.0.1.15
-     │
-EC2
-```
-
----
-
-### Auto-assigned Public IP vs Elastic IP
-
-**Auto-assigned Public IP**
-
-* Assigned automatically while the instance is running.
-* Returned to AWS when the instance is stopped.
-* New Public IP after Stop/Start.
-
-**Elastic IP**
-
-* Static Public IP allocated to your AWS account.
-* Remains associated until you detach or release it.
-* Can be moved between EC2 instances.
-
----
-
-### Exam Shortcut
-
-If the requirement says:
-
-* **Keep the same Private IP** → Think **ENI**
-* **Keep the same Public IP** → Think **Elastic IP**
-
----
-
-# AWS Networking Identity
-
-An EC2's identity is made up of different components:
-
-```text
-Compute Identity
----------------
-CPU
-RAM
-
-Storage Identity
-----------------
-EBS Volumes
-
-Network Identity
-----------------
-ENI
-├── Private IP
-├── MAC Address
-├── Security Groups
-└── Elastic IP (optional)
-```
-
-AWS allows these components to be managed independently, which is why failover can preserve storage or networking without preserving compute.
-
----
-## Elastic Network Interface (ENI)
-
-### Mental Model
-
-* Think of an ENI as a **virtual Network Interface Card (NIC)** attached to an EC2 instance.
-* The EC2 provides the **compute** (CPU + RAM), while the ENI provides the **network identity**.
-* Every EC2 has at least one ENI (called the **Primary ENI**).
-* Depending on the instance type, an EC2 can have multiple ENIs attached.
-
-```text
-EC2
-│
-├── CPU
-├── RAM
-├── EBS
-│
-├── ENI-1 (Primary)
-└── ENI-2 (Optional)
-```
-
----
-
-### Why Multiple ENIs?
-
-An EC2 may have multiple ENIs to:
-
-* Connect to multiple subnets (within the same AZ).
-* Separate different kinds of network traffic (e.g., application traffic and management traffic).
-* Preserve network identity during failover by moving an ENI to another EC2.
-
----
-
-### What belongs to an ENI?
-
-The following networking properties belong to the ENI (not directly to the EC2):
-
-* Primary Private IPv4 Address
-* Secondary Private IPv4 Address(es)
-* MAC Address
-* Security Groups
-* Elastic IP(s) (if associated)
-
-Think:
-
-> **Everything related to networking belongs to the ENI.**
-
----
-
-### Private IP Addresses
-
-* Every ENI has **exactly one Primary Private IP**.
-* An ENI can also have **multiple Secondary Private IPs**.
-
-Example:
-
-```text
-ENI
-
-Primary Private IP
-10.0.1.15
-
-Secondary Private IP
-10.0.1.16
-
-Secondary Private IP
-10.0.1.17
-```
-
-This means a single EC2 can own multiple private IP addresses.
-
----
-
-### Multiple ENIs + Multiple Private IPs
-
-If an EC2 has multiple ENIs, each ENI has its own Primary Private IP and optional Secondary Private IPs.
-
-Example:
-
-```text
-EC2
-
-├── ENI-1
-│     ├── 10.0.1.15 (Primary)
-│     └── 10.0.1.16 (Secondary)
-│
-└── ENI-2
-      ├── 10.0.2.20 (Primary)
-      └── 10.0.2.21 (Secondary)
-```
-
----
-
-### Elastic IP
-
-* An Elastic IP is **not** a Private IP.
-* It is a **static Public IP** allocated by AWS.
-* AWS performs a **1:1 NAT mapping** between an Elastic IP and a Private IP.
-
-```text
-Elastic IP (Public)
-54.x.x.x
-      │
-      ▼
-Private IP
-10.0.1.15
-      │
-      ▼
-ENI
-      │
-      ▼
-EC2
-```
-
-* An Elastic IP is associated with a **Private IP on an ENI**, not directly with the EC2.
-* A Private IP can have at most **one Elastic IP** associated with it.
-* If an ENI has multiple Private IPs, different Elastic IPs can be associated with different Private IPs.
-
-Example:
-
-```text
-ENI
-
-10.0.1.15  ←→  54.x.x.x
-
-10.0.1.16  ←→  13.x.x.x
-```
-
-This means a single EC2 can have multiple Public (Elastic) IPs.
-
----
-
-### Why move an ENI?
-
-Suppose:
-
-```text
-EC2-A
-
-ENI
-└── Private IP = 10.0.1.15
-```
-
-If EC2-A fails:
-
-```text
-Detach ENI
-
-↓
-
-Attach ENI
-
-↓
-
-EC2-B
-```
-
-EC2-B now has the same:
-
-* Private IP
-* MAC Address
-* Security Groups
-* Elastic IP(s) (if associated)
-
-Clients continue connecting to the same Private IP without knowing that the compute has changed.
-
----
-
+- ENI-1: 10.0.1.15 (primary), 10.0.1.16 (secondary)
+- ENI-2: 10.0.2.20 (primary), 10.0.2.21 (secondary)
+
+#### Elastic IP (EIP) and Public IP mapping
+- An Elastic IP is a static public IP allocated to your account and is associated with a Private IP on an ENI — not directly to the EC2.
+- AWS performs a 1:1 NAT between the Elastic IP (public) and the Private IP (private).
+- A Private IP can have at most one Elastic IP. If an ENI has multiple private IPs, different Elastic IPs may be associated with different private IPs on that ENI.
+- Auto-assigned public IPs behave differently (transient on stop/start); Elastic IPs remain until detached or released.
+
+Diagram (conceptual):
+Internet ↔ Elastic IP (54.x.x.x) ↔ NAT ↔ Private IP (10.0.1.15) ↔ ENI ↔ EC2
+
+#### Why move an ENI
+- Detaching and reattaching an ENI preserves its networking characteristics (Private IP(s), MAC, Security Groups, associated Elastic IP(s)), so clients can keep connecting to the same private IP even if the compute (EC2) changes.
+- Common uses: failover (move ENI to replacement instance), separating traffic, or connecting an instance to multiple subnets (within the same AZ).
+
+#### Multiple ENIs and traffic separation
+- Multiple ENIs allow:
+  - Connections to different subnets (same AZ)
+  - Logical separation of traffic (e.g., application vs management)
+  - Additional private IP addresses across ENIs
+- Limits on number of ENIs and IPs depend on the instance type.
