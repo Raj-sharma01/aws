@@ -81,3 +81,233 @@ Next hop (NAT, IGW, local, etc.)
  │
  Google
 ```
+
+
+### Route Tables (Additional Notes)
+
+* Every subnet can be associated with **exactly one** Route Table at a time.
+* One Route Table **can** be associated with multiple subnets.
+* Associating a custom Route Table with a subnet **replaces** the Main Route Table for that subnet. The subnet does **not** use both.
+* Every Route Table automatically contains a **local** route for the VPC CIDR (e.g. `10.0.0.0/16 -> local`).
+* **`local` does NOT mean same subnet.** It means the destination is somewhere **inside the same VPC** (could be the same subnet or another subnet).
+* Route Tables only look at the **Destination IP**. They do **not** consider:
+
+  * Source IP
+  * Protocol (TCP/UDP)
+  * Port
+  * Domain name (DNS)
+* If multiple routes match, AWS always chooses the **most specific route (Longest Prefix Match)**.
+* If no route matches the destination IP, the packet is dropped.
+
+---
+
+### Public vs. Private Subnets (Additional Notes)
+
+* A subnet is considered **public** only if:
+
+  * It has a route to an **Internet Gateway**, **AND**
+  * The resource itself has a **Public IP** (or Elastic IP) if it needs to communicate directly with the internet.
+* Simply attaching an IGW to a VPC does **not** make every subnet public.
+---
+
+### Internet Gateway (IGW)
+
+* IGW is a **Regional** resource attached to exactly one VPC.
+* It is **not** inside any subnet.
+
+---
+
+### Security Groups (Additional Notes)
+
+* Security Groups are **stateful**.
+* If an outbound request is allowed, the corresponding inbound response is automatically allowed.
+* Likewise, if an inbound request is allowed, the outbound response is automatically allowed.
+* Security Groups only have **Allow** rules. There are no explicit **Deny** rules.
+* A resource can have **multiple Security Groups** attached.
+* The effective permission is the **union (OR)** of all attached Security Groups.
+* Security Groups can reference another Security Group instead of an IP range.
+
+  * Instead of:
+
+    * Allow MySQL from `10.0.1.0/24`
+  * Use:
+
+    * Allow MySQL from `AppServer-SG`
+  * This avoids hardcoding IP addresses and automatically works for new resources using that SG.
+
+---
+
+### Network ACL (NACL)
+
+* NACLs are attached to **Subnets**, not resources.
+* Every subnet can have only **one** associated NACL.
+* One NACL can be associated with multiple subnets.
+* NACLs are **stateless**.
+
+  * Every packet is evaluated independently.
+  * If inbound traffic is allowed, the outbound response must also be explicitly allowed.
+* Unlike Security Groups, NACLs support both **Allow** and **Deny** rules.
+* If either the NACL or the Security Group blocks the packet, communication fails.
+* NACLs are commonly used for:
+
+  * Blocking known malicious IPs for an entire subnet.
+  * Applying subnet-wide security policies.
+  * Adding an extra layer of security (Defense in Depth).
+
+---
+
+Whenever an application inside your VPC queries an external domain or one of your own domains, it first queries AmazonProvidedDNS. If the query is for a public domain (like google.com), the resolver goes to the public internet to find the answer. If the query is for one of your own Route 53 domains (like ://mycompany.com), AmazonProvidedDNS forwards the request to Route 53, which acts as the ultimate authority for that domain and returns the mapped IP address
+
+### Packet Flow (Updated Mental Model)
+
+#### Browser → ALB → EC2
+
+```text
+Browser
+ │
+ DNS Lookup
+ │
+ Internet
+ │
+ IGW
+ │
+ ALB
+ │
+ Route (inside VPC)
+ │
+ NACL
+ │
+ EC2 SG
+ │
+ EC2
+```
+
+---
+
+#### EC2 → Internet
+
+```text
+Application creates packet
+ │
+ ▼
+Outbound SG
+"Am I allowed to send this?"
+ │
+ ▼
+Route Table
+"Where is the next hop?"
+ │
+ ▼
+NAT Gateway (if private subnet)
+ │
+ ▼
+Internet Gateway
+ │
+ ▼
+Internet
+```
+
+Packet Flow (Updated Mental Model)
+
+Browser → ALB → EC2
+
+```text
+Browser
+ │
+ ▼
+DNS Lookup
+ │
+ ├── Browser asks Local DNS Resolver (ISP/OS)
+ │
+ ├── If your domain is hosted in Route 53
+ │       ▼
+ │    Route 53 returns ALB IP/Alias
+ │
+ └── (Otherwise another public DNS provider)
+ │
+ ▼
+Internet
+ │
+ ▼
+Internet Gateway
+ │
+ ▼
+ALB Security Group
+ │
+ ▼
+ALB
+ │
+ ▼
+Route (inside VPC - local)
+ │
+ ▼
+EC2 Subnet NACL
+ │
+ ▼
+EC2 Security Group
+ │
+ ▼
+EC2
+```
+
+Private EC2 → Internet
+```text
+Application
+ │
+ ▼
+DNS Lookup
+ │
+ ▼
+AmazonProvidedDNS
+ │
+ ▼
+Public DNS (if needed)
+ │
+ ▼
+Destination IP obtained
+ │
+ ▼
+Outbound Security Group
+ │
+ ▼
+Route Table
+ │
+ ▼
+NAT Gateway (if private subnet)
+ │
+ ▼
+Internet Gateway
+ │
+ ▼
+Internet
+```
+
+EC2 → RDS (Private)
+
+```text
+Application
+ │
+ ▼
+DNS Lookup
+ │
+ ▼
+AmazonProvidedDNS
+ │
+ ▼
+Returns RDS Private IP
+ │
+ ▼
+Outbound Security Group
+ │
+ ▼
+Route Table (local)
+ │
+ ▼
+RDS Subnet NACL
+ │
+ ▼
+RDS Security Group
+ │
+ ▼
+RDS
+```
