@@ -253,3 +253,5 @@ Internet ↔ Elastic IP (54.x.x.x) ↔ NAT ↔ Private IP (10.0.1.15) ↔ ENI �
 
 ### S3 - pre-signed URL
 * Temporarily allow access (read or write) to a specific object without requiring AWS credentials.
+* <img width="725" height="423" alt="image" src="https://github.com/user-attachments/assets/3790ea4c-3922-40d8-9ad1-2bbe11fc8649" />
+
