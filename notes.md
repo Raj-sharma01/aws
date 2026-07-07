@@ -250,3 +250,6 @@ Internet ↔ Elastic IP (54.x.x.x) ↔ NAT ↔ Private IP (10.0.1.15) ↔ ENI �
 * The server (e.g., S3) must return the appropriate CORS headers (such as `Access-Control-Allow-Origin`) to allow the browser to expose the response to JavaScript.
 * CORS is enforced by the browser, not by server (S3) itself.
 * Without CORS, S3 may successfully return the object, but the browser will block JavaScript from accessing the response.
+
+### S3 - pre-signed URL
+* Temporarily allow access (read or write) to a specific object without requiring AWS credentials.
