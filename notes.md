@@ -242,3 +242,11 @@ Internet ↔ Elastic IP (54.x.x.x) ↔ NAT ↔ Private IP (10.0.1.15) ↔ ENI �
   - Logical separation of traffic (e.g., application vs management)
   - Additional private IP addresses across ENIs
 - Limits on number of ENIs and IPs depend on the instance type.
+
+### CORS (Cross-Origin Resource Sharing)
+
+* Browsers enforce the Same-Origin Policy.
+* If JavaScript on one origin (website/domain) tries to access another origin, the browser performs a CORS check.
+* The server (e.g., S3) must return the appropriate CORS headers (such as `Access-Control-Allow-Origin`) to allow the browser to expose the response to JavaScript.
+* CORS is enforced by the browser, not by server (S3) itself.
+* Without CORS, S3 may successfully return the object, but the browser will block JavaScript from accessing the response.
