@@ -243,6 +243,87 @@ Internet ↔ Elastic IP (54.x.x.x) ↔ NAT ↔ Private IP (10.0.1.15) ↔ ENI �
   - Additional private IP addresses across ENIs
 - Limits on number of ENIs and IPs depend on the instance type.
 
+1. What is DHCP?
+
+Know the basic idea:
+
+DHCP (Dynamic Host Configuration Protocol) automatically gives a device its network configuration when it joins a network.
+
+Instead of manually configuring:
+
+IP address
+Subnet mask
+Default gateway
+DNS server
+
+the device asks a DHCP server for them.
+
+2. Does AWS have a DHCP server?
+
+Yes.
+
+Every VPC uses an AWS-managed DHCP service.
+
+When an EC2 starts, AWS automatically provides:
+
+Private IPv4 address
+Subnet mask
+Default gateway (VPC router)
+DNS server
+Domain name
+
+You don't install or manage a DHCP server yourself.
+
+3. What is a DHCP Option Set?
+
+This is the AWS-specific part.
+
+Normally AWS gives EC2 instances default values.
+
+A DHCP Option Set lets you customize some of those values.
+
+For example:
+
+Domain name
+DNS servers
+NTP servers (in some cases)
+
+It does not let you decide:
+
+which private IP an EC2 gets
+which subnet it joins
+which ENI it uses
+
+This is exactly why Question 3 had the wrong answer:
+
+"Configure DHCP to assign the same private IP..."
+
+AWS DHCP doesn't work like that.
+
+Private IP assignment comes from the ENI/subnet, not from DHCP options.
+
+4. Does DHCP assign private IPs?
+
+Technically:
+
+AWS allocates the private IP to the ENI.
+DHCP informs the operating system what IP it has.
+
+For the SAA exam, don't overthink this distinction.
+
+A good mental model is:
+
+EC2 starts
+    │
+    ▼
+AWS allocates a private IP
+    │
+    ▼
+DHCP tells the OS:
+- Your IP
+- Your gateway
+- Your DNS server
+
 ### CORS (Cross-Origin Resource Sharing)
 
 * Browsers enforce the Same-Origin Policy.
