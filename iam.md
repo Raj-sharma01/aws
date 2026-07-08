@@ -51,6 +51,10 @@
 * The **IAM Evaluation Engine** checks if your current identity has a permission policy allowing `sts:AssumeRole` AND checks the target role's trust policy to see if you are allowed in.
 * If IAM approves, STS returns an AccessKey, SecretKey, and SessionToken. **Using these temporary credentials is what it means to assume the role.**
 
+<img width="718" height="345" alt="image" src="https://github.com/user-attachments/assets/cc0d2e23-e065-46af-9ef6-7542ee1ae648" />
+
+<img width="1260" height="667" alt="image" src="https://github.com/user-attachments/assets/ff079b1c-3760-4a3b-8b20-d6472ab6cbef" />
+
 
 
 ### Trust Policies vs. Permission Policies
