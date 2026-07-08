@@ -242,88 +242,185 @@ Internet ↔ Elastic IP (54.x.x.x) ↔ NAT ↔ Private IP (10.0.1.15) ↔ ENI �
   - Logical separation of traffic (e.g., application vs management)
   - Additional private IP addresses across ENIs
 - Limits on number of ENIs and IPs depend on the instance type.
+### DHCP
 
-1. What is DHCP?
+**1. What is DHCP?**
 
-Know the basic idea:
+* Know the basic idea: DHCP (Dynamic Host Configuration Protocol) automatically gives a device its network configuration when it joins a network. Instead of manually configuring IP address, Subnet mask, Default gateway, and DNS server, the device asks a DHCP server for them.
 
-DHCP (Dynamic Host Configuration Protocol) automatically gives a device its network configuration when it joins a network.
+**2. Does AWS have a DHCP server?**
 
-Instead of manually configuring:
+* Yes. Every VPC uses an AWS-managed DHCP service. When an EC2 starts, AWS automatically provides: Private IPv4 address, Subnet mask, Default gateway (VPC router), DNS server, and Domain name. You don't install or manage a DHCP server yourself.
 
-IP address
-Subnet mask
-Default gateway
-DNS server
+**3. What is a DHCP Option Set?**
 
-the device asks a DHCP server for them.
+* This is the AWS-specific part. Normally AWS gives EC2 instances default values. A DHCP Option Set lets you customize some of those values (e.g., Domain name, DNS servers, NTP servers).
+* It does **not** let you decide which private IP an EC2 gets, which subnet it joins, or which ENI it uses. (AWS DHCP doesn't assign specific IPs; assignment comes from the ENI/subnet).
 
-2. Does AWS have a DHCP server?
+**4. Does DHCP assign private IPs?**
 
-Yes.
+* Technically: AWS allocates the private IP to the ENI. DHCP informs the operating system what IP it has.
+* **Mental model:** `EC2 starts -> AWS allocates a private IP -> DHCP tells the OS: "Your IP, Your gateway, Your DNS server"`
 
-Every VPC uses an AWS-managed DHCP service.
+---
 
-When an EC2 starts, AWS automatically provides:
+## 5. EC2 Compute, Lifecycle & Storage
 
-Private IPv4 address
-Subnet mask
-Default gateway (VPC router)
-DNS server
-Domain name
+# EC2 Lifecycle
 
-You don't install or manage a DHCP server yourself.
+### Mental Model
 
-3. What is a DHCP Option Set?
+An EC2 instance consists of two major parts:
 
-This is the AWS-specific part.
+* **Compute (temporary):** CPU, RAM, Physical Host, Instance Store (local SSD, if present)
+* **Persistent Storage:** EBS Volumes (Root + Additional EBS)
 
-Normally AWS gives EC2 instances default values.
+When an instance is stopped, AWS can release the **compute** but keep the **EBS**.
 
-A DHCP Option Set lets you customize some of those values.
+### Instance States
 
-For example:
+* **Pending:** AWS is preparing the instance (allocating compute, attaching EBS volumes, configuring networking).
+* **Running:** Instance is ready. Compute billing starts.
+* **Stopping:** Instance is shutting down.
+* Normally not billed.
+* Exception: Hibernation is billed while RAM is being copied to EBS.
 
-Domain name
-DNS servers
-NTP servers (in some cases)
 
-It does not let you decide:
+* **Stopped:** Compute is released. EBS volumes still exist.
+* **Shutting-down:** Instance is being permanently deleted.
+* **Terminated:** Instance no longer exists.
 
-which private IP an EC2 gets
-which subnet it joins
-which ENI it uses
+### Reboot
 
-This is exactly why Question 3 had the wrong answer:
+Think: **Restart the operating system.**
 
-"Configure DHCP to assign the same private IP..."
+* Instance stays on the **same physical host**.
+* CPU and RAM are restarted. RAM contents are lost.
+* Root EBS, additional EBS, and Instance Store are preserved.
+* Private IP and Public IP remain the same.
 
-AWS DHCP doesn't work like that.
+### Stop
 
-Private IP assignment comes from the ENI/subnet, not from DHCP options.
+Think: **Shut down the machine and give the hardware back to AWS.**
 
-4. Does DHCP assign private IPs?
+* Compute resources are released (CPU released, RAM lost, Physical host released).
+* Root EBS and additional EBS are detached and preserved.
+* **Instance Store is lost** because it belongs to the old physical host.
+* Private IP remains the same. Auto-assigned Public IP changes when the instance starts again. Elastic IP remains associated.
 
-Technically:
+### Hibernate
 
-AWS allocates the private IP to the ENI.
-DHCP informs the operating system what IP it has.
+Think: **Stop + Save RAM.**
 
-For the SAA exam, don't overthink this distinction.
+* Before stopping: `RAM -> Saved to Root EBS`
+* When started again: `Root EBS -> RAM Restored -> Application continues`
+* CPU/Physical host released. Root/Additional EBS preserved. Instance Store lost.
+* Private IP remains the same. Auto-assigned Public IP changes. Elastic IP remains associated.
+* No compute charges while Stopped, but you still pay for Root EBS, Additional EBS, and Storage used to save RAM.
 
-A good mental model is:
+### Terminate
 
-EC2 starts
-    │
-    ▼
-AWS allocates a private IP
-    │
-    ▼
-DHCP tells the OS:
-- Your IP
-- Your gateway
-- Your DNS server
+Think: **Delete the instance permanently.**
 
+* Compute is deleted. RAM/Instance Store is lost.
+* Root EBS is deleted by default (configurable). Additional EBS depends on its Delete on Termination setting.
+* Private and Public IPs are released. Elastic IP is disassociated (but not deleted).
+
+### Storage Types
+
+**EBS (Elastic Block Store)**
+
+* Think: **Persistent network disk.**
+* Network attached storage. Independent of the physical host. Can move with the instance to another host.
+* Survives: Reboot, Stop, Hibernate. (Deleted on Termination by default).
+
+**Instance Store**
+
+* Think: **Local SSD of the physical server.**
+* Physically attached to the host. Extremely fast. Temporary storage.
+* Survives only: Reboot (same host).
+* Lost on: Stop, Hibernate, Terminate.
+* > **Rule:** Instance Store belongs to the **host**, not the **instance**.
+
+
+
+---
+
+## 6. EC2 Networking Identity (ENI & IPs)
+
+### Elastic Network Interface (ENI)
+
+#### Mental model
+
+* Think of an ENI as a **virtual Network Interface Card (NIC)** that provides an EC2 instance's network identity. Compute (CPU/RAM) and networking are separate: the EC2 supplies compute while the ENI supplies network identity.
+* Every EC2 has at least one ENI (the Primary ENI). Some instance types support multiple ENIs.
+* ENIs can be detached from one EC2 and attached to another within the *same Availability Zone (AZ)*, allowing network identity to move independently of compute.
+
+```text
+EC2
+│
+├── CPU
+├── RAM
+├── EBS
+│
+├── ENI-1 (Primary)
+└── ENI-2 (Optional)
+
+```
+
+#### What belongs to an ENI
+
+The following networking properties belong to the ENI (not directly to the EC2):
+
+* Primary and Secondary Private IPv4 addresses
+* MAC address
+* Security Groups
+* Any associated Elastic IP(s)
+
+> **Rule:** Everything related to networking belongs to the ENI.
+
+#### Private IPs
+
+* Each ENI has **exactly one Primary Private IP** and may have multiple Secondary Private IPs.
+* An EC2 with multiple ENIs can therefore have private IPs on each ENI (each ENI keeps its own primary + optional secondaries).
+* Example: `ENI-1: 10.0.1.15 (primary), 10.0.1.16 (secondary)` / `ENI-2: 10.0.2.20 (primary), 10.0.2.21 (secondary)`
+
+
+
+#### Multiple ENIs & Traffic Separation
+
+* Multiple ENIs allow connections to different subnets (same AZ), logical separation of traffic (e.g., application vs management), and additional private IP addresses across ENIs.
+
+#### Why move an ENI?
+
+* Detaching and reattaching an ENI preserves its networking characteristics (Private IP(s), MAC, Security Groups, associated Elastic IP(s)), so clients can keep connecting to the same private IP even if the compute (EC2) changes.
+* Common uses: failover (move ENI to replacement instance).
+
+### Public IP vs. Elastic IP
+
+**Auto-assigned Public IP**
+
+* Assigned automatically while the instance is running.
+* Returned to AWS when the instance is stopped. New Public IP after Stop/Start.
+
+**Elastic IP (EIP)**
+
+* An Elastic IP is a **static public IP** allocated to your account and is associated with a Private IP on an ENI — not directly to the EC2.
+* AWS performs a 1:1 NAT mapping between the Elastic IP (public) and the Private IP (private).
+* A Private IP can have at most one Elastic IP. If an ENI has multiple private IPs, different Elastic IPs may be associated with different private IPs on that ENI.
+
+```text
+Internet ↔ Elastic IP (54.x.x.x) ↔ NAT ↔ Private IP (10.0.1.15) ↔ ENI ↔ EC2
+
+```
+
+> **Exam Shortcut:**
+> * Keep the same **Private IP** → Think **ENI**
+> * Keep the same **Public IP** → Think **Elastic IP**
+> 
+> 
+
+---
 ### CORS (Cross-Origin Resource Sharing)
 
 * Browsers enforce the Same-Origin Policy.
