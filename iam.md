@@ -63,7 +63,22 @@
 * **Trust Policy:** A required JSON policy attached to an IAM Role that explicitly defines which external entities (principals) are authorized to assume that role. It serves as a security gatekeeper ("Who is allowed to put on this hat?").
 * In a trust policy (or any resource policy), you must mention a principal. You can specify: AWS account and root user, IAM roles, Role sessions, IAM users, Federated user principals, AWS services, or All principals.
 
+trust policy example:
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "ec2.amazonaws.com"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
 
+```
 
 ### How AWS Resources Assume Roles (No Infinite Loop)
 
