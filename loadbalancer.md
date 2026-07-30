@@ -1,4 +1,4 @@
-# Phase 2 — Load Balancing Fundamentals
+# Load Balancing Fundamentals
 
 This is independent of AWS.
 
@@ -35,7 +35,12 @@ especially
 ### Types
 
 * L4
+* <img width="1024" height="768" alt="image" src="https://github.com/user-attachments/assets/3c8d734a-33ef-46db-95c2-10e23eba7fc9" />
+pros: simple and faster. only one tcp connection. just liek a NAT or router.
+cons: no smart load balancing algo that uses data and since can't read the data-packet can't change the data like headers. also can't route to different micro services based on the url path (one of the features of api gw)
 * L7
+* <img width="1024" height="768" alt="image" src="https://github.com/user-attachments/assets/587e3695-e99e-4189-a86e-4ed2f6a2f58c" />
+
 * Reverse Proxy
 * Forward Proxy
 
