@@ -4,9 +4,9 @@ This is independent of AWS.
 
 ### Why load balancing?
 
-* scalability
+* scalability - we can scale our servers horizontally
 * availability
-* fault tolerance
+* fault tolerance - even when one or more servers fail, the service will still work as lb will just use the rest of the servers
 * horizontal scaling
 * zero downtime
 
